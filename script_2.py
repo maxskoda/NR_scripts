@@ -23,7 +23,7 @@ except ImportError:
 run_angle = ScriptActions.run_angle
 
 
-def runscript():
+def runscript(dry_run=False):
     sample_generator = SampleGenerator(
         translation=400.0,
         height2_offset=0.0,
@@ -68,7 +68,7 @@ def runscript():
     H2O = [0, 100, 0, 0]
     SMW = [38, 62, 0, 0]
 
-    DryRun.dry_run = True
+    DryRun.dry_run = dry_run
     samp = sample_1
     samp.subtitle = "D2O vesicle rinsing"
     run_angle(samp, 0.7, 15)
@@ -96,4 +96,4 @@ def runscript():
 # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
 # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
 
-runscript()
+runscript(dry_run=True)

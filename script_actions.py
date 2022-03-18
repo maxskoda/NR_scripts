@@ -92,7 +92,7 @@ class ScriptActions:
         movement.update_title(sample.title, sample.subtitle, angle, add_current_gaps=include_gaps_in_title)
 
         movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
-
+    @DryRun
     def run_angle_SM(sample, angle, count_uamps=None, count_seconds=None, count_frames=None, vgaps: dict = None,
                               hgaps: dict = None, smangle=0.0, mode=None, do_auto_height=False, laser_offset_block="b.KEYENCE",
                               fine_height_block="HEIGHT", auto_height_target=0.0, continue_on_error=False, dry_run=False,
@@ -171,6 +171,7 @@ class ScriptActions:
 
 
     # TODO: Do we want to change the order of the arguments here?
+    @DryRun
     def transmission(sample, title: str, vgaps: dict = None, hgaps: dict = None, count_uamps: float = None,
                               count_seconds: float = None, count_frames: float = None, height_offset: float = 5,
                               mode: str = None, dry_run: bool = False, include_gaps_in_title: bool = True,
@@ -234,6 +235,7 @@ class ScriptActions:
 
 
     # TODO: Do we want to change the order of the arguments here?
+    @DryRun
     def transmission_SM(sample, title: str, vgaps: dict = None, hgaps: dict = None,
                                  count_uamps: float = None, count_seconds: float = None, count_frames: float = None,
                                  height_offset: float = 5, smangle: float = 0.0,
