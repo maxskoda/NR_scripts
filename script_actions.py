@@ -25,7 +25,8 @@ class DryRun:
 
     def __call__(self, *args, **kwargs):
         if self.__class__.dry_run == True:
-            print("Only dry run, would be running ", self.f.__name__)
+            tit = args[0].title if isinstance(args[0], Sample) else ""
+            print("Only dry run, would be running ", self.f.__name__, tit, args[1:])
         else:
             print("Running for real...")
             self.f(*args, **kwargs)

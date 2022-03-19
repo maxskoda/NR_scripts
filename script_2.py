@@ -87,11 +87,11 @@ def runscript(dry_run=False):
 # run_angle_new_edit(samp,2.3,30)
 # contrast_change(samp.valve,H2O,flow=2.0,volume=15)
 
-# for samp in [sample_3, sample_4]:
-# samp.subtitle="H2O"
-# run_angle_new_edit(samp,0.7,15)
-# run_angle_new_edit(samp,2.3,30)
-# contrast_change(samp.valve,D2O,flow=2.0,volume=15)
+    for samp in [sample_3, sample_4]:
+        samp.subtitle="H2O"
+        run_angle(samp,0.7,15)
+        run_angle(samp,2.3,30)
+        contrast_change(samp.valve,D2O,flow=2.0,volume=15)
 
 # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
 # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
