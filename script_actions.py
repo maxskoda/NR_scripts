@@ -20,13 +20,25 @@ from instrument_constants import get_instrument_constants
 
 class DryRun:
     dry_run = False
+    counter = 0
+    run_time = 0
     def __init__(self, f):
         self.f = f
 
     def __call__(self, *args, **kwargs):
         if self.__class__.dry_run == True:
+            DryRun.counter += 1
+
+            DryRun.run_time += self.f(*args, **kwargs, dry_run=True)
+            hours = str(int(DryRun.run_time / 60)).zfill(2)
+            minutes = str(int(DryRun.run_time % 60)).zfill(2)
             tit = args[0].title if isinstance(args[0], Sample) else ""
-            print("Only dry run, would be running ", self.f.__name__, tit, args[1:])
+            if tit != "":
+                print(f'{DryRun.counter:02}', "Dry run: ",
+                      self.f.__name__, tit, args[1:], "-->|", hours+":"+minutes, " hh:mm")
+            else:
+                print(f'{DryRun.counter:02}', "Dry run: ",
+                      self.f.__name__, kwargs, "-->|", hours+":"+minutes, "hh:mm")
         else:
             print("Running for real...")
             self.f(*args, **kwargs)
@@ -78,21 +90,30 @@ class ScriptActions:
             be used for the run to the screen.
         """
 
-        print("** Run angle {} **".format(sample.title))
+        if dry_run:
+            if count_uamps:
+                return count_uamps/40 * 60 # value for TS2, needs instrument check
+            elif count_seconds:
+                return count_seconds/60
+            elif count_frames:
+                return count_frames/36000
+        else:
+            print("** Run angle {} **".format(sample.title))
 
-        movement = _Movement(dry_run)
+            movement = _Movement(dry_run)
 
-        constants, mode_out = movement.setup_measurement(mode)
+            constants, mode_out = movement.setup_measurement(mode)
 
-        movement.sample_setup(sample, angle, constants, mode_out)
-        if hgaps is None:
-            hgaps = sample.hgaps
-        movement.set_axis_dict(hgaps)
-        movement.set_slit_vgaps(angle, constants, vgaps, sample)
-        movement.wait_for_move()
-        movement.update_title(sample.title, sample.subtitle, angle, add_current_gaps=include_gaps_in_title)
+            movement.sample_setup(sample, angle, constants, mode_out)
+            if hgaps is None:
+                hgaps = sample.hgaps
+            movement.set_axis_dict(hgaps)
+            movement.set_slit_vgaps(angle, constants, vgaps, sample)
+            movement.wait_for_move()
+            movement.update_title(sample.title, sample.subtitle, angle, add_current_gaps=include_gaps_in_title)
 
-        movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
+            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
+
     @DryRun
     def run_angle_SM(sample, angle, count_uamps=None, count_seconds=None, count_frames=None, vgaps: dict = None,
                               hgaps: dict = None, smangle=0.0, mode=None, do_auto_height=False, laser_offset_block="b.KEYENCE",

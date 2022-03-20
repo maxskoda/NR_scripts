@@ -71,29 +71,30 @@ def runscript(dry_run=False):
     DryRun.dry_run = dry_run
     samp = sample_1
     samp.subtitle = "D2O vesicle rinsing"
-    run_angle(samp, 0.7, 15)
+    run_angle(samp, 0.7, 10)
     run_angle(samp, 2.3, 30)
-    contrast_change(samp, SMW, flow=2.0, volume=15, wait=True)
+    contrast_change(samp, SMW, flow=1.0, volume=15, wait=True)
 
-# samp=sample_1
-# samp.subtitle="SMW"
-# run_angle_new_edit(samp,0.7,20)
-# run_angle_new_edit(samp,2.3,30)
-# contrast_change(samp.valve,H2O,flow=2.0,volume=15)
+    # samp=sample_1
+    # samp.subtitle="SMW"
+    # run_angle_new_edit(samp,0.7,20)
+    # run_angle_new_edit(samp,2.3,30)
+    # contrast_change(samp.valve,H2O,flow=2.0,volume=15)
 
-# for samp in [sample_2, sample_3, sample_4]:
-# samp.subtitle="D2O"
-# run_angle_new_edit(samp,0.7,10)
-# run_angle_new_edit(samp,2.3,30)
-# contrast_change(samp.valve,H2O,flow=2.0,volume=15)
+    # for samp in [sample_2, sample_3, sample_4]:
+    # samp.subtitle="D2O"
+    # run_angle_new_edit(samp,0.7,10)
+    # run_angle_new_edit(samp,2.3,30)
+    # contrast_change(samp.valve,H2O,flow=2.0,volume=15)
 
-    for samp in [sample_3, sample_4]:
+    for samp in [sample_1, sample_3, sample_4]:
         samp.subtitle="H2O"
-        run_angle(samp,0.7,15)
+        run_angle(samp,0.7,10)
         run_angle(samp,2.3,30)
-        contrast_change(samp.valve,D2O,flow=2.0,volume=15)
+        contrast_change(samp, D2O, flow=1.0, volume=15)
 
-# transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
-# transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
+    # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
+    # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
 
+    print("=== Total time: ", str(int(DryRun.run_time / 60))+"h " + str(int(DryRun.run_time % 60)) + "min ===")
 runscript(dry_run=True)

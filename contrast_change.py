@@ -12,7 +12,7 @@ except ImportError:
     from mocks import g
 
 @DryRun
-def contrast_change(sample, concentrations, flow, volume=None, seconds=None, wait=False, dry_run=False):
+def contrast_change(sample, concentrations, flow=1, volume=None, seconds=None, wait=False, dry_run=False):
     """
     Perform a contrast change.
     Args:
@@ -24,18 +24,26 @@ def contrast_change(sample, concentrations, flow, volume=None, seconds=None, wai
         wait: True wait for completion; False don't wait
         dry_run: True don't do anything just print what it will do; False otherwise
     """
-    print("** Contrast change for valve{} **".format(valve_position))
-    if len(concentrations) != 4:
-        print("There must be 4 concentrations, you provided {}".format(len(concentrations)))
-    sum_of_concentrations = sum(concentrations)
-    if fabs(100 - sum_of_concentrations) > 0.01:
-        print("Concentrations don't add up to 100%! {} = {}".format(concentrations, sum_of_concentrations))
-    waiting = "" if wait else "NOT "
+    if dry_run:
+        if wait and volume:
+            return volume/flow
+        else:
+            return 0
 
-    print("Concentration: Valve {}, concentrations {}, flow {},  volume {}, time {}, and {}waiting for completion"
-          .format(sample.valve, concentrations, flow, volume, seconds, waiting))
 
-    if not dry_run:
+    else:
+        print("** Contrast change for valve{} **".format(sample.valve))
+        if len(concentrations) != 4:
+            print("There must be 4 concentrations, you provided {}".format(len(concentrations)))
+        sum_of_concentrations = sum(concentrations)
+        if fabs(100 - sum_of_concentrations) > 0.01:
+            print("Concentrations don't add up to 100%! {} = {}".format(concentrations, sum_of_concentrations))
+        waiting = "" if wait else "NOT "
+
+        print("Concentration: Valve {}, concentrations {}, flow {},  volume {}, time {}, and {}waiting for completion"
+              .format(sample.valve, concentrations, flow, volume, seconds, waiting))
+
+
         g.cset("knauer", sample.valve)
         g.cset("Component_A", concentrations[0])
         g.cset("Component_B", concentrations[1])
