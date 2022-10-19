@@ -1,8 +1,8 @@
-
 from contextlib2 import contextmanager
 
 from future.moves import itertools
 from math import tan, radians, sin
+from datetime import datetime
 
 from six.moves import input
 
@@ -12,33 +12,43 @@ try:
 except ImportError:
     from mocks import g
 
-
 # import general.utilities.io
 from sample import Sample
 from NR_motion import _Movement
 from instrument_constants import get_instrument_constants
 
+
 class DryRun:
     dry_run = False
     counter = 0
     run_time = 0
+
     def __init__(self, f):
         self.f = f
 
     def __call__(self, *args, **kwargs):
-        if self.__class__.dry_run == True:
+        if self.__class__.dry_run:
             DryRun.counter += 1
 
             DryRun.run_time += self.f(*args, **kwargs, dry_run=True)
             hours = str(int(DryRun.run_time / 60)).zfill(2)
             minutes = str(int(DryRun.run_time % 60)).zfill(2)
             tit = args[0].title if isinstance(args[0], Sample) else ""
+            if self.counter <=1:
+                columns = ["No", "Action", "Title", "Parameters", "Duration"]
+                print(f"{columns[0]:^11}|{columns[1]:^17}|{columns[2]:^52}|{columns[3]:^19}|{columns[4]:^16}")
+
             if tit != "":
-                print(f'{DryRun.counter:02}', "Dry run: ",
-                      self.f.__name__, tit, args[1:], "-->|", hours+":"+minutes, " hh:mm")
+                # print(f'{DryRun.counter:02}', "Dry run: ",
+                #       self.f.__name__, tit, args[1:], "-->|", hours + ":" + minutes, " hh:mm")
+                arg = str(args[1:])
+                print(f"{DryRun.counter:02} Dry run: {str(self.f.__name__)[:15]:17} "
+                      f"{tit[:50]:52} {arg[:15]:17} -->| {hours:2}:{minutes:2}  hh:mm")
             else:
-                print(f'{DryRun.counter:02}', "Dry run: ",
-                      self.f.__name__, kwargs, "-->|", hours+":"+minutes, "hh:mm")
+                # print(f'{DryRun.counter:02}', "Dry run: ",
+                #       self.f.__name__, kwargs, "-->|", hours + ":" + minutes, "hh:mm")
+                print(f"{DryRun.counter:02} Dry run: {self.f.__name__} {kwargs[50]:52} "
+                      f"-->| {hours:2}:{minutes:2} hh:mm")
         else:
             print("Running for real...")
             self.f(*args, **kwargs)
@@ -47,9 +57,9 @@ class DryRun:
 class ScriptActions:
     @DryRun
     def run_angle(sample, angle: float, count_uamps: float = None, count_seconds: float = None,
-                           count_frames: float = None, vgaps: dict = None, hgaps: dict = None, mode: str = None,
-                           dry_run: bool = False, include_gaps_in_title: bool = False, osc_slit: bool = False,
-                           osc_block: str = 'S2HG', osc_gap: float = None):
+                  count_frames: float = None, vgaps: dict = None, hgaps: dict = None, mode: str = None,
+                  dry_run: bool = False, include_gaps_in_title: bool = False, osc_slit: bool = False,
+                  osc_block: str = 'S2HG', osc_gap: float = None):
         """
         Move to a given theta and smangle with slits set. If a current, time or frame count are given then take a
         measurement.
@@ -92,11 +102,11 @@ class ScriptActions:
 
         if dry_run:
             if count_uamps:
-                return count_uamps/40 * 60 # value for TS2, needs instrument check
+                return count_uamps / 40 * 60  # value for TS2, needs instrument check
             elif count_seconds:
-                return count_seconds/60
+                return count_seconds / 60
             elif count_frames:
-                return count_frames/36000
+                return count_frames / 36000
         else:
             print("** Run angle {} **".format(sample.title))
 
@@ -112,14 +122,15 @@ class ScriptActions:
             movement.wait_for_move()
             movement.update_title(sample.title, sample.subtitle, angle, add_current_gaps=include_gaps_in_title)
 
-            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
+            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps,
+                                       hgaps)
 
     @DryRun
     def run_angle_SM(sample, angle, count_uamps=None, count_seconds=None, count_frames=None, vgaps: dict = None,
-                              hgaps: dict = None, smangle=0.0, mode=None, do_auto_height=False, laser_offset_block="b.KEYENCE",
-                              fine_height_block="HEIGHT", auto_height_target=0.0, continue_on_error=False, dry_run=False,
-                              include_gaps_in_title=False,
-                              smblock='SM2', osc_slit: bool = False, osc_block: str = 'S2HG', osc_gap: float = None):
+                     hgaps: dict = None, smangle=0.0, mode=None, do_auto_height=False, laser_offset_block="b.KEYENCE",
+                     fine_height_block="HEIGHT", auto_height_target=0.0, continue_on_error=False, dry_run=False,
+                     include_gaps_in_title=False,
+                     smblock='SM2', osc_slit: bool = False, osc_block: str = 'S2HG', osc_gap: float = None):
         """
         Move to a given theta and smangle with slits set. If a current, time or frame count are given then take a
         measurement.
@@ -175,11 +186,12 @@ class ScriptActions:
         movement = _Movement(dry_run)
 
         constants, mode_out = movement.setup_measurement(mode)
-        smblock_out, smang_out = movement.sample_setup(sample, angle, constants, mode_out, smang=smangle, smblock=smblock)
+        smblock_out, smang_out = movement.sample_setup(sample, angle, constants, mode_out, smang=smangle,
+                                                       smblock=smblock)
 
         if do_auto_height:
             _Movement.auto_height(laser_offset_block, fine_height_block, target=auto_height_target,
-                        continue_if_nan=continue_on_error, dry_run=dry_run)
+                                  continue_if_nan=continue_on_error, dry_run=dry_run)
 
         if hgaps is None:
             hgaps = sample.hgaps
@@ -187,17 +199,17 @@ class ScriptActions:
         movement.set_slit_vgaps(angle, constants, vgaps, sample)
         movement.wait_for_move()
 
-        movement.update_title(sample.title, sample.subtitle, angle, smang_out, smblock_out, add_current_gaps=include_gaps_in_title)
+        movement.update_title(sample.title, sample.subtitle, angle, smang_out, smblock_out,
+                              add_current_gaps=include_gaps_in_title)
 
         movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
-
 
     # TODO: Do we want to change the order of the arguments here?
     @DryRun
     def transmission(sample, title: str, vgaps: dict = None, hgaps: dict = None, count_uamps: float = None,
-                              count_seconds: float = None, count_frames: float = None, height_offset: float = 5,
-                              mode: str = None, dry_run: bool = False, include_gaps_in_title: bool = True,
-                              osc_slit: bool = True, osc_block: str = 'S2HG', osc_gap: float = None, at_angle: float = 0.7):
+                     count_seconds: float = None, count_frames: float = None, height_offset: float = 5,
+                     mode: str = None, dry_run: bool = False, include_gaps_in_title: bool = True,
+                     osc_slit: bool = True, osc_block: str = 'S2HG', osc_gap: float = None, at_angle: float = 0.7):
         """
         Perform a transmission with both supermirrors removed. Args: sample (techniques.reflectometry.sample.Sample): The
         sample to measure title: Title to set vgaps: vertical gaps to be set; for each gap if not specified then
@@ -229,42 +241,49 @@ class ScriptActions:
             would be all set to 20. The super mirror would be moved into the beam and set to the angle 0.1.
             The system will be record at least 1 frame of data.
         """
+        if dry_run:
+            if count_uamps:
+                return count_uamps / 40 * 60  # value for TS2, needs instrument check
+            elif count_seconds:
+                return count_seconds / 60
+            elif count_frames:
+                return count_frames / 36000
+        else:
+            print("** Transmission {} **".format(title))
 
-        print("** Transmission {} **".format(title))
+            movement = _Movement(dry_run)
+            constants, mode_out = movement.setup_measurement(mode)
 
-        movement = _Movement(dry_run)
-        constants, mode_out = movement.setup_measurement(mode)
+            with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
+                movement.sample_setup(sample, 0.0, constants, mode_out, height_offset)
 
-        with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
-            movement.sample_setup(sample, 0.0, constants, mode_out, height_offset)
+                if vgaps is None:
+                    vgaps = {}
+                if "S3VG".casefold() not in vgaps.keys():
+                    vgaps.update({"S3VG": constants.s3max})
 
-            if vgaps is None:
-                vgaps = {}
-            if "S3VG".casefold() not in vgaps.keys():
-                vgaps.update({"S3VG": constants.s3max})
+                if hgaps is None:
+                    hgaps = sample.hgaps
+                movement.set_axis_dict(hgaps)
+                movement.set_slit_vgaps(at_angle, constants, vgaps, sample)
+                # Edit for this to be an instrument default for the angle to be used in calc when vg not defined.
+                movement.wait_for_move()
 
-            if hgaps is None:
-                hgaps = sample.hgaps
-            movement.set_axis_dict(hgaps)
-            movement.set_slit_vgaps(at_angle, constants, vgaps, sample)
-            # Edit for this to be an instrument default for the angle to be used in calc when vg not defined.
-            movement.wait_for_move()
+                movement.update_title(title, "", None, add_current_gaps=include_gaps_in_title)
+                movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps,
+                                           hgaps)
 
-            movement.update_title(title, "", None, add_current_gaps=include_gaps_in_title)
-            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
-
-            # Horizontal gaps and height reset by with reset_gaps_and_sample_height
-
+                # Horizontal gaps and height reset by with reset_gaps_and_sample_height
 
     # TODO: Do we want to change the order of the arguments here?
     @DryRun
     def transmission_SM(sample, title: str, vgaps: dict = None, hgaps: dict = None,
-                                 count_uamps: float = None, count_seconds: float = None, count_frames: float = None,
-                                 height_offset: float = 5, smangle: float = 0.0,
-                                 mode: str = None, dry_run: bool = False, include_gaps_in_title: bool = True,
-                                 osc_slit: bool = True,
-                                 osc_block: str = 'S2HG', osc_gap: float = None, at_angle: float = 0.7,
-                                 smblock: str = 'SM2'):
+                        count_uamps: float = None, count_seconds: float = None, count_frames: float = None,
+                        height_offset: float = 5, smangle: float = 0.0,
+                        mode: str = None, dry_run: bool = False, include_gaps_in_title: bool = True,
+                        osc_slit: bool = True,
+                        osc_block: str = 'S2HG', osc_gap: float = None, at_angle: float = 0.7,
+                        smblock: str = 'SM2'):
         """
         Perform a transmission. Smangle is set via smangle Arg and the mirror can be specified.
         Behaviour depends on mode:
@@ -318,7 +337,8 @@ class ScriptActions:
 
         with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
 
-            smblock_out, smang_out = movement.sample_setup(sample, 0.0, constants, mode_out, height_offset, smangle, smblock)
+            smblock_out, smang_out = movement.sample_setup(sample, 0.0, constants, mode_out, height_offset, smangle,
+                                                           smblock)
 
             if vgaps is None:
                 vgaps = {}
@@ -336,7 +356,6 @@ class ScriptActions:
                                        vgaps, hgaps)
 
             # Horizontal gaps and height reset by with reset_gaps_and_sample_height
-
 
     # Added extra part for centres too.
     @contextmanager
@@ -399,5 +418,3 @@ class ScriptActions:
             movement.wait_for_seconds(5)
             print("\n\n PRESS ctl + c to get the prompt back \n\n")  # This is because there is a bug in pydev
             raise  # reraise the exception so that any running script will be aborted
-
-

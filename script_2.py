@@ -2,6 +2,7 @@
 # ## with ScriptMaker (c) Maximilian Skoda 2020 
 # ## Enjoy and use at your own risk.
 
+from datetime import datetime
 from script_actions import ScriptActions, DryRun
 from sample import SampleGenerator
 from contrast_change import *
@@ -21,9 +22,13 @@ except ImportError:
 # 									run_angle_new_edit,  run_angle_SM_new_edit, transmission_new_edit, transmission_new_SM_edit
 
 run_angle = ScriptActions.run_angle
+transmission = ScriptActions.transmission
 
 
 def runscript(dry_run=False):
+    now = datetime.now()
+    DryRun.dry_run = dry_run
+
     sample_generator = SampleGenerator(
         translation=400.0,
         height2_offset=0.0,
@@ -36,7 +41,7 @@ def runscript(dry_run=False):
         footprint=60,
         hgaps={'S1HG': 47.9, 'S2HG': 30, 'S3HG': 60})
 
-    sample_1 = sample_generator.new_sample(title="Si1-C19",
+    sample_1 = sample_generator.new_sample(title="Si1-C19 long title long title long title long title long title long title ",
                                            translation=605.0,
                                            height_offset=-8.57,
                                            phi_offset=0.900 - 0.697,
@@ -68,7 +73,6 @@ def runscript(dry_run=False):
     H2O = [0, 100, 0, 0]
     SMW = [38, 62, 0, 0]
 
-    DryRun.dry_run = dry_run
     samp = sample_1
     samp.subtitle = "D2O vesicle rinsing"
     run_angle(samp, 0.7, 10)
@@ -87,14 +91,17 @@ def runscript(dry_run=False):
     # run_angle_new_edit(samp,2.3,30)
     # contrast_change(samp.valve,H2O,flow=2.0,volume=15)
 
-    for samp in [sample_1, sample_3, sample_4]:
-        samp.subtitle="H2O"
-        run_angle(samp,0.7,10)
-        run_angle(samp,2.3,30)
+    for samp in [sample_1, sample_2, sample_3, sample_4]:
+        samp.subtitle = "H2O"
+        run_angle(samp, 0.7, 10)
+        run_angle(samp, 2.3, 30)
         contrast_change(samp, D2O, flow=1.0, volume=15)
 
-    # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
-    # transmission_new_edit(sample_3,"Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
+    transmission(sample_3, "Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 10, 'S2HG': 6})
+    transmission(sample_3, "Si3-unmarked", at_angle=0.7, count_uamps=20, hgaps={'S1HG': 50, 'S2HG': 30})
 
-    print("=== Total time: ", str(int(DryRun.run_time / 60))+"h " + str(int(DryRun.run_time % 60)) + "min ===")
+    print("=== Total time: ", str(int(DryRun.run_time / 60)) + "h " + str(int(DryRun.run_time % 60)) + "min ===")
+
+
+# runscript()
 runscript(dry_run=True)
