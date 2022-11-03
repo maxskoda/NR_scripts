@@ -37,7 +37,7 @@ class DryRun:
             if self.counter <=1:
                 columns = ["No", "Action", "Title", "Parameters", "Duration"]
                 print(f"{columns[0]:^11}|{columns[1]:^17}|{columns[2]:^52}|{columns[3]:^19}|{columns[4]:^16}")
-
+                now = datetime.now()
             if tit != "":
                 # print(f'{DryRun.counter:02}', "Dry run: ",
                 #       self.f.__name__, tit, args[1:], "-->|", hours + ":" + minutes, " hh:mm")
