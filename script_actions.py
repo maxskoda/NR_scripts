@@ -1,8 +1,8 @@
+from datetime import datetime, timedelta
 from contextlib2 import contextmanager
-
-from future.moves import itertools
-from math import tan, radians, sin
 from datetime import datetime
+from future.moves import itertools
+from math import tan, radians, sin, fabs
 
 from six.moves import input
 
@@ -13,9 +13,9 @@ except ImportError:
     from mocks import g
 
 # import general.utilities.io
-from sample import Sample
-from NR_motion import _Movement
-from instrument_constants import get_instrument_constants
+from .sample import Sample, SampleGenerator
+from .NR_motion import _Movement
+from .instrument_constants import get_instrument_constants
 
 
 class DryRun:
@@ -29,21 +29,26 @@ class DryRun:
     def __call__(self, *args, **kwargs):
         if self.__class__.dry_run:
             DryRun.counter += 1
+            kwargs['dry_run'] = True
+            rt, summary = self.f(*args, **kwargs)
 
-            DryRun.run_time += self.f(*args, **kwargs, dry_run=True)
+            DryRun.run_time += rt
+            newtime = datetime.now() + timedelta(minutes=DryRun.run_time)
+            ETA = newtime.strftime("%H:%M")
             hours = str(int(DryRun.run_time / 60)).zfill(2)
             minutes = str(int(DryRun.run_time % 60)).zfill(2)
             tit = args[0].title if isinstance(args[0], Sample) else ""
-            if self.counter <=1:
-                columns = ["No", "Action", "Title", "Parameters", "Duration"]
-                print(f"{columns[0]:^11}|{columns[1]:^17}|{columns[2]:^52}|{columns[3]:^19}|{columns[4]:^16}")
+            if self.counter <= 1:
+                columns = ["No", "Action", "Title", "Parameters", "Elapsed time", "ETA"]
+                print(
+                    f"{columns[0]:^3}|{columns[1]:^17}|{columns[2]:^45}|{columns[3]:^34}|{columns[4]:^14}|{columns[5]:^7}")
                 now = datetime.now()
             if tit != "":
                 # print(f'{DryRun.counter:02}', "Dry run: ",
                 #       self.f.__name__, tit, args[1:], "-->|", hours + ":" + minutes, " hh:mm")
                 arg = str(args[1:])
-                print(f"{DryRun.counter:02} Dry run: {str(self.f.__name__)[:15]:17} "
-                      f"{tit[:50]:52} {arg[:15]:17} -->| {hours:2}:{minutes:2}  hh:mm")
+                print(f"{DryRun.counter:02}: {str(self.f.__name__)[:15]:17} "
+                      f"{tit[:43]:45} {summary:30} -->| {hours:2}:{minutes:2}  hh:mm | {ETA}")
             else:
                 # print(f'{DryRun.counter:02}', "Dry run: ",
                 #       self.f.__name__, kwargs, "-->|", hours + ":" + minutes, "hh:mm")
@@ -54,7 +59,9 @@ class DryRun:
             self.f(*args, **kwargs)
 
 
-class ScriptActions:
+class RunActions:
+    
+    @staticmethod
     @DryRun
     def run_angle(sample, angle: float, count_uamps: float = None, count_seconds: float = None,
                   count_frames: float = None, vgaps: dict = None, hgaps: dict = None, mode: str = None,
@@ -102,11 +109,11 @@ class ScriptActions:
 
         if dry_run:
             if count_uamps:
-                return count_uamps / 40 * 60  # value for TS2, needs instrument check
+                return count_uamps / 40 * 60, f"({angle}, {count_uamps} uAmps)"  # value for TS2, needs instrument check
             elif count_seconds:
-                return count_seconds / 60
+                return count_seconds / 60, f"({angle}, {count_seconds} s)"
             elif count_frames:
-                return count_frames / 36000
+                return count_frames / 36000, f"({angle}, {count_frames} frames)"
         else:
             print("** Run angle {} **".format(sample.title))
 
@@ -125,6 +132,7 @@ class ScriptActions:
             movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps,
                                        hgaps)
 
+    @staticmethod
     @DryRun
     def run_angle_SM(sample, angle, count_uamps=None, count_seconds=None, count_frames=None, vgaps: dict = None,
                      hgaps: dict = None, smangle=0.0, mode=None, do_auto_height=False, laser_offset_block="b.KEYENCE",
@@ -180,31 +188,40 @@ class ScriptActions:
             In this run, dry_run is set to True so nothing will actually happen, it will only print the settings that would
             be used for the run to the screen.
         """
+        if dry_run:
+            if count_uamps:
+                return count_uamps / 40 * 60, f"({angle}, {count_uamps} uAmps)"  # value for TS2, needs instrument check
+            elif count_seconds:
+                return count_seconds / 60, f"({angle}, {count_seconds} s)"
+            elif count_frames:
+                return count_frames / 36000, f"({angle}, {count_frames} frames)"
+        else:
+            print("** Run angle {} **".format(sample.title))
 
-        print("** Run angle {} **".format(sample.title))
+            movement = _Movement(dry_run)
 
-        movement = _Movement(dry_run)
+            constants, mode_out = movement.setup_measurement(mode)
+            smblock_out, smang_out = movement.sample_setup(sample, angle, constants, mode_out, smang=smangle,
+                                                           smblock=smblock)
 
-        constants, mode_out = movement.setup_measurement(mode)
-        smblock_out, smang_out = movement.sample_setup(sample, angle, constants, mode_out, smang=smangle,
-                                                       smblock=smblock)
+            if do_auto_height:
+                _Movement.auto_height(laser_offset_block, fine_height_block, target=auto_height_target,
+                                      continue_if_nan=continue_on_error, dry_run=dry_run)
 
-        if do_auto_height:
-            _Movement.auto_height(laser_offset_block, fine_height_block, target=auto_height_target,
-                                  continue_if_nan=continue_on_error, dry_run=dry_run)
+            if hgaps is None:
+                hgaps = sample.hgaps
+            movement.set_axis_dict(hgaps)
+            movement.set_slit_vgaps(angle, constants, vgaps, sample)
+            movement.wait_for_move()
 
-        if hgaps is None:
-            hgaps = sample.hgaps
-        movement.set_axis_dict(hgaps)
-        movement.set_slit_vgaps(angle, constants, vgaps, sample)
-        movement.wait_for_move()
+            movement.update_title(sample.title, sample.subtitle, angle, smang_out, smblock_out,
+                                  add_current_gaps=include_gaps_in_title)
 
-        movement.update_title(sample.title, sample.subtitle, angle, smang_out, smblock_out,
-                              add_current_gaps=include_gaps_in_title)
-
-        movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
+            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap, vgaps, hgaps)
 
     # TODO: Do we want to change the order of the arguments here?
+
+    @staticmethod
     @DryRun
     def transmission(sample, title: str, vgaps: dict = None, hgaps: dict = None, count_uamps: float = None,
                      count_seconds: float = None, count_frames: float = None, height_offset: float = 5,
@@ -243,18 +260,18 @@ class ScriptActions:
         """
         if dry_run:
             if count_uamps:
-                return count_uamps / 40 * 60  # value for TS2, needs instrument check
+                return count_uamps / 40 * 60, f"({sample.title}, {count_uamps} uAmps)"  # value for TS2, needs instrument check
             elif count_seconds:
-                return count_seconds / 60
+                return count_seconds / 60, f"({sample.title},{count_seconds} s)"
             elif count_frames:
-                return count_frames / 36000
+                return count_frames / 36000, f"({sample.title},{count_frames} frames)"
         else:
             print("** Transmission {} **".format(title))
 
             movement = _Movement(dry_run)
             constants, mode_out = movement.setup_measurement(mode)
 
-            with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
+            with movement.reset_hgaps_and_sample_height_new(sample, constants):
                 movement.sample_setup(sample, 0.0, constants, mode_out, height_offset)
 
                 if vgaps is None:
@@ -276,6 +293,7 @@ class ScriptActions:
                 # Horizontal gaps and height reset by with reset_gaps_and_sample_height
 
     # TODO: Do we want to change the order of the arguments here?
+    @staticmethod
     @DryRun
     def transmission_SM(sample, title: str, vgaps: dict = None, hgaps: dict = None,
                         count_uamps: float = None, count_seconds: float = None, count_frames: float = None,
@@ -329,92 +347,166 @@ class ScriptActions:
             would be all set to 20. The super mirror would be moved into the beam and set to the angle 0.1. The mode will
             be changed to PNR. The system will be record at least 1 frame of data.
         """
+        if dry_run:
+            if count_uamps:
+                return count_uamps / 40 * 60, f"({sample.title}, {count_uamps} uAmps)"  # value for TS2, needs instrument check
+            elif count_seconds:
+                return count_seconds / 60, f"({sample.title},{count_seconds} s)"
+            elif count_frames:
+                return count_frames / 36000, f"({sample.title},{count_frames} frames)"
+        else:
+            print("** Transmission {} **".format(title))
 
-        print("** Transmission {} **".format(title))
+            movement = _Movement(dry_run)
+            constants, mode_out = movement.setup_measurement(mode)
 
-        movement = _Movement(dry_run)
-        constants, mode_out = movement.setup_measurement(mode)
+            with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
 
-        with _Movement.reset_hgaps_and_sample_height_new(movement, sample, constants):
+                smblock_out, smang_out = movement.sample_setup(sample, 0.0, constants, mode_out, height_offset, smangle,
+                                                               smblock)
 
-            smblock_out, smang_out = movement.sample_setup(sample, 0.0, constants, mode_out, height_offset, smangle,
-                                                           smblock)
+                if vgaps is None:
+                    vgaps = {}
+                if "S3VG".casefold() not in vgaps.keys():
+                    vgaps.update({"S3VG": constants.s3max})
+                if hgaps is None:
+                    hgaps = sample.hgaps
+                movement.set_axis_dict(hgaps)
+                movement.set_slit_vgaps(at_angle, constants, vgaps, sample)
+                # Edit for this to be an instrument default for the angle to be used in calc when vg not defined.
+                movement.wait_for_move()
 
-            if vgaps is None:
-                vgaps = {}
-            if "S3VG".casefold() not in vgaps.keys():
-                vgaps.update({"S3VG": constants.s3max})
-            if hgaps is None:
-                hgaps = sample.hgaps
-            movement.set_axis_dict(hgaps)
-            movement.set_slit_vgaps(at_angle, constants, vgaps, sample)
-            # Edit for this to be an instrument default for the angle to be used in calc when vg not defined.
-            movement.wait_for_move()
+                movement.update_title(title, "", None, smang_out, smblock_out, add_current_gaps=include_gaps_in_title)
+                movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap,
+                                           vgaps, hgaps)
 
-            movement.update_title(title, "", None, smang_out, smblock_out, add_current_gaps=include_gaps_in_title)
-            movement.start_measurement(count_uamps, count_seconds, count_frames, osc_slit, osc_block, osc_gap,
-                                       vgaps, hgaps)
 
-            # Horizontal gaps and height reset by with reset_gaps_and_sample_height
+# This means they can be typed directly into the IBEX python console:
+# _runaction_instance = RunActions()
+# run_angle = _runaction_instance.run_angle
+# run_angle_SM = _runaction_instance.run_angle_SM
+# transmission = _runaction_instance.transmission
+# transmission_SM = _runaction_instance.transmission_SM
 
-    # Added extra part for centres too.
-    @contextmanager
-    def reset_hgaps_and_sample_height_new(movement, sample, constants):
+class SEActions:
+    @staticmethod
+    @DryRun
+    def contrast_change(sample, concentrations, flow=1, volume=None, seconds=None, wait=False, dry_run=False):
         """
-        After the context is over reset the gaps back to the value before and set the height to the default sample height.
-        Edited to reset the gap centres too.
-        If keyboard interrupt give options for what to do.
+        Perform a contrast change.
         Args:
-            movement(_Movement): object that does movement required (or pronts message for a dry run)
-            sample: sample to get the sample offset from
-            constants: instrument constants
-
+            sample: sample object with valve position to set for the Knauer valve
+            concentrations: List of concentrations from A to D, e.g. [10, 20, 30, 40]
+            flow: flow rate (as per device usually mL/min)
+            volume: volume to pump; if None then pump for a time instead
+            seconds: number of seconds to pump; if both volume and seconds set then volume is used
+            wait: True wait for completion; False don't wait
+            dry_run: True don't do anything just print what it will do; False otherwise
         """
-        horizontal_gaps = movement.get_gaps(vertical=False, centres=False)
-        horizontal_cens = movement.get_gaps(vertical=False, centres=True)
+        
+        if dry_run:
+            if wait and volume:
+                return volume/flow, f"Line {sample.valve}, {concentrations}, {volume}mL, {flow}mL/min"
+            else:
+                return 0, f"Line {sample.valve}, {concentrations}, {volume}mL, {flow}mL/min"
 
-        def _reset_gaps():
-            print("Reset horizontal centres to {}".format(list(horizontal_cens.values())))
-            movement.set_axis_dict(horizontal_cens)
-            print("Reset horizontal gaps to {}".format(list(horizontal_gaps.values())))
-            movement.set_axis_dict(horizontal_gaps)
-            # TODO join the above together?
+        else:
+            if isinstance(sample, int):
+                print('Here')
+                valvepos = sample
+                print("** Contrast change for valve{} **".format(valvepos))
+            elif isinstance(sample, Sample):
+                valvepos = sample.valve
+                print("** Contrast change for valve{} **".format(valvepos))
+            else:
+                print("Incorrect form for valve - must be specified as integer or pre-defined sample")
 
-            movement.set_axis("HEIGHT", sample.height_offset, constants)
-            movement.set_axis("HEIGHT2", sample.height2_offset, constants)
-            movement.wait_for_move()
+            if len(concentrations) != 4:
+                print("There must be 4 concentrations, you provided {}".format(len(concentrations)))
+            sum_of_concentrations = sum(concentrations)
+            if fabs(100 - sum_of_concentrations) > 0.01:
+                print("Concentrations don't add up to 100%! {} = {}".format(concentrations, sum_of_concentrations))
+            waiting = "" if wait else "NOT "
 
-        try:
-            yield
-            _reset_gaps()
-        except KeyboardInterrupt:
-            running_on_entry = not movement.is_in_setup()
-            if running_on_entry:
-                g.pause()
+            print("Concentration: Valve {}, concentrations {}, flow {},  volume {}, time {}, and {}waiting for completion"
+                  .format(valvepos, concentrations, flow, volume, seconds, waiting))
 
-            while True:
-                print("")
-                choice = input("ctrl-c hit do you wish to (A)bort or (E)nd or (K)eep Counting?")
-                if choice is not None and choice.upper() in ["A", "E", "K"]:
-                    break
-                print("Invalid choice try again!")
 
-            if choice.upper() == "A":
-                if running_on_entry:
-                    g.abort()
-                print("Setting horizontal slit gaps to pre-tranmission values.")
-                _reset_gaps()
+            g.cset("knauer", valvepos)
+            g.cset("Component_A", concentrations[0])
+            g.cset("Component_B", concentrations[1])
+            g.cset("Component_C", concentrations[2])
+            g.cset("Component_D", concentrations[3])
+            g.cset("hplcflow", flow)
+            if volume is not None:
+                g.cset("pump_for_volume", volume)
+                g.cset("start_pump_for_volume", 1)
+            elif seconds is not None:
+                g.cset("pump_for_time", seconds)
+                g.cset("start_pump_for_time", 1)
+            else:
+                print("Error concentration not set neither volume or time set!")
+                return
+            g.waitfor_block("pump_is_on", "IDLE")
 
-            elif choice.upper() == "E":
-                if running_on_entry:
-                    g.end()
-                _reset_gaps()
+            if wait:
+                g.waitfor_block("pump_is_on", "OFF")
 
-            elif choice.upper() == "K":
-                print("Continuing counting, remember to set back horizontal slit gaps when the run is ended.")
-                if running_on_entry:
-                    g.resume()
+    # @DryRun
+    @staticmethod
+    def inject(sample, liquid, flow=1.0, volume=None, wait=False):
+        if isinstance(sample, int):
+            valvepos = sample
+            print("** Contrast change for valve{} **".format(valvepos))
+        elif isinstance(sample, Sample):
+            valvepos = sample.valve
+            print("** Contrast change for valve{} **".format(valvepos))
+        else:
+            print("Incorrect form for valve - must be specified as integer or pre-defined sample")
 
-            movement.wait_for_seconds(5)
-            print("\n\n PRESS ctl + c to get the prompt back \n\n")  # This is because there is a bug in pydev
-            raise  # reraise the exception so that any running script will be aborted
+        if isinstance(liquid, list):
+            g.cset("KNAUER2",3) # set to take HPLC input from channel 3
+            g.waitfor_time(1)
+            contrast_change(valvepos, liquid, flow=flow, volume=volume, wait=wait)
+        elif isinstance(liquid,str) and liquid.upper() in ["SYRINGE_1", "SYRINGE_2"]:
+            g.cset("KNAUER",valvepos)
+            if liquid.upper() == "SYRINGE_1":
+                g.cset("KNAUER2",1)
+                g.waitfor_time(1)
+                g.cset("Syringe_ID",0) # syringe A or 1
+            elif liquid.upper() == "SYRINGE_2":
+                g.cset("KNAUER2",2)
+                g.waitfor_time(1)
+                g.cset("Syringe_ID",1) # syringe B or 2 
+            # calculate time, set up the syringe parameters and start the injection
+            inject_time = volume / flow * 60
+            g.cset("Syringe_volume", volume)
+            g.cset("Syringe_rate", flow)
+            g.cset("Syringe_start",1)
+
+            if wait:
+                g.waitfor_time(inject_time + 2)
+        else:
+            print("Please specify either Syringe_1 or Syringe_2")
+                #break
+
+# THIS MAY BECOME REDUNDANT.
+def slit_check(theta, footprint, resolution):
+    """
+    Check the slits values
+    Args:
+        theta: theta
+        footprint: desired footprint
+        resolution:  desired resolution
+
+    """
+    constants = get_instrument_constants()
+    movement = _Movement(True)
+    calc_dict = movement.calculate_slit_gaps(theta, footprint, resolution, constants)
+    print("For a footprint of {} and resolution of {} at an angle {}:".format(footprint, resolution, theta))
+    print(calc_dict)
+
+# This means they can be typed directly into the IBEX python console:
+_SEaction_instance = SEActions()
+contrast_change = _SEaction_instance.contrast_change
+inject = _SEaction_instance.inject
